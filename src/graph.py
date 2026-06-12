@@ -69,7 +69,7 @@ graph = builder.compile()
 if __name__ == "__main__":
     initial_state = {
         "joke": "",
-        "topic": "程序员",
+        "topic": "黑人",
         "feedback": "",
         "funny_or_not": ""
     }

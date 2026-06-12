@@ -5,3 +5,15 @@ langchain-openai==0.1.20   # 如果用 dashscope
 # langchain-anthropic==0.1.20   # 如果用 anthropic
 deepagents>=0.1.0          # 这个包可能还在开发，请使用最新版
 # 注意：deepagents 会自动安装 langgraph 等依赖
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langchain-mcp-adapters>=0.1.9
+mcp>=1.0.0
+fastmcp>=0.3.0
+aiohttp>=3.9.0
+pandas>=2.0.0
+matplotlib>=3.7.0
+python-dotenv>=1.0.0
+psycopg[binary]>=3.1.0
+langgraph-store-postgres>=0.1.0
