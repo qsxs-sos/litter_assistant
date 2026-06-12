@@ -1,21 +1,19 @@
 import os
 from typing import TypedDict, Literal
-
-import load_dotenv
+from dotenv import load_dotenv   # 修正导入
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
+from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
 
 load_dotenv()
 
-
 class State(TypedDict):
-    joke: str  # 生成冷笑话内容
-    topic: str  # 主题
-    feedback: str  # 改进建议
-    funny_or_not: str  # 幽默评级
-
+    joke: str
+    topic: str
+    feedback: str
+    funny_or_not: str
 
 llm = ChatOpenAI(
     model="qwen-plus",
@@ -23,7 +21,6 @@ llm = ChatOpenAI(
     api_key=os.getenv("DASHSCOPE_API_KEY"),
     base_url=os.getenv("DASHSCOPE_BASE_URL"),
 )
-
 
 class Feedback(BaseModel):
     grade: Literal["funny", "not funny"] = Field(
@@ -35,70 +32,46 @@ class Feedback(BaseModel):
         examples=["可以加入双关语或意外结局"]
     )
 
-
-# 定义节点函数(笑话节点)
-def generator_func(state: State) -> State:
-    """由大模型生成一个冷笑话节点"""
-    prompt = (
-        f"根据反馈改进笑话{state['feedback']}\n主题: {state['topic']}"
-        if state.get("feedback")
-        else f"创作一个关于{state['topic']}的笑话"
-    )
-    # 第一种写法
-    # response = llm.invoke(prompt)
-    # return {'joke': response.content}
-    # 第二种 （使用输出解压器）:会把内容StrOutputParser() 按照解析器进行解析。
+def generator_func(state: State) -> dict:
+    if state.get("feedback"):
+        prompt = f"请根据以下反馈改进关于{state['topic']}的笑话：{state['feedback']}\n输出改进后的笑话："
+    else:
+        prompt = f"请创作一个关于{state['topic']}的冷笑话。"
     chain = llm | StrOutputParser()
     resp = chain.invoke(prompt)
-    return {'joke': resp}
+    return {"joke": resp}
 
-
-# 定义节点函数（评估节点）
-def avaluator_func(state: State) -> State:
-    """评估状态中的冷笑话"""
-    prompt = (
-        f"根据反馈改进笑话{state['feedback']}\n主题: {state['topic']}"
-        if state.get("feedback")
-        else f"创作一个关于{state['topic']}的笑话"
-    )
-
-    # 第二种 （使用输出解压器）:会把内容StrOutputParser() 按照解析器进行解析。
-    chain = llm | StrOutputParser()
-    resp = chain.invoke(prompt)
-    return {'joke': resp}
-
-
-def avaluator_func1(state: State):
-    # """评估状态中的冷笑话"""
+def evaluator_func(state: State) -> dict:
     chain = llm.with_structured_output(Feedback)
-    resp = chain.invoke(
-        f"评估此笑话的幽默程度：\n{state['joke']}\n"
-        "注意：幽默应包换意外性或巧妙措辞"
-    )
-    return {'grade': resp.grade,
-            'feedback': resp.feedback}
-
-
-# 第二种，仿制成工具模型
-def avaluator_func2(state: State):
-    # """评估状态中的冷笑话"""
-    chain = llm.with_structured_output(Feedback)
-    evaluation = chain.invoke(
-        f"评估此笑话的幽默程度：\n{state['joke']}\n"
-        "注意：幽默应包换意外性或巧妙措辞"
-    )
-    evaluation = evaluation.tool_calls[-1]['args']
+    resp = chain.invoke(f"评估此笑话的幽默程度：\n{state['joke']}\n注意：幽默应包含意外性或巧妙措辞")
     return {
-        "funny_or_not": evaluation['grade'],
-        "feedback": evaluation['feedback']
+        "funny_or_not": resp.grade,
+        "feedback": resp.feedback
     }
 
+def route_func(state: State) -> Literal["generator", "__end__"]:
+    return END if state.get("funny_or_not") == "funny" else "generator"
 
-
-# 构建一个工作流
 builder = StateGraph(State)
+builder.add_node("generator", generator_func)
+builder.add_node("evaluator", evaluator_func)
 
-builder.add_node('generator', generator_func)
-builder.add_node('avaluator', avaluator_func1)
+builder.add_edge(START, "generator")
+builder.add_edge("generator", "evaluator")
+builder.add_conditional_edges("evaluator", route_func, {
+    "generator": "generator",
+    "__end__": END
+})
 
-#
+graph = builder.compile()
+
+# 测试运行
+if __name__ == "__main__":
+    initial_state = {
+        "joke": "",
+        "topic": "程序员",
+        "feedback": "",
+        "funny_or_not": ""
+    }
+    final = graph.invoke(initial_state)
+    print("最终笑话:", final["joke"])
