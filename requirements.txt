@@ -1,0 +1,7 @@
+flask==3.0.3
+flask-cors==4.0.1
+python-dotenv==1.0.1
+langchain-openai==0.1.20   # 如果用 dashscope
+# langchain-anthropic==0.1.20   # 如果用 anthropic
+deepagents>=0.1.0          # 这个包可能还在开发，请使用最新版
+# 注意：deepagents 会自动安装 langgraph 等依赖
